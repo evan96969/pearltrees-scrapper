@@ -1,0 +1,73 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║        COMMENT TROUVER SES COOKIES PEARLTREES                       ║
+║        Pour télécharger des collections privées                     ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Les cookies sont nécessaires UNIQUEMENT si vous voulez télécharger
+des fichiers depuis des collections PRIVÉES sur Pearltrees.
+Pour les collections publiques, laissez les champs cookies VIDES.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ÉTAPE PAR ÉTAPE
+  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. Ouvrez Chrome/Edge/Firefox et allez sur https://www.pearltrees.com
+  
+  2. Connectez-vous à votre compte Pearltrees
+  
+  3. Appuyez sur F12 (outils développeur)
+  
+  4. Cliquez sur l'onglet "Réseau" (ou "Network")
+  
+  5. Rechargez la page avec F5
+  
+  6. Cliquez sur la PREMIÈRE requête dans la liste
+  
+  7. Dans "En-têtes" (Headers), cherchez la ligne "Cookie:"
+     Elle ressemble à ceci :
+  
+     Cookie: PEARLTREESSESSION=9442ca58a9fe164d; PEARLTREES-AUTH=19cf36fa2ff.1050be5.0.0.57cd47ee...; pearltrees-auths=19cf36fa2ff...
+
+  8. Dans cette ligne, repérez les 3 valeurs :
+     
+     • PEARLTREESSESSION = une valeur courte (ex: 9442ca58a9fe164d)
+     • PEARLTREES-AUTH   = une valeur longue (ex: 19cf36fa2ff.1050be5.0.0.57cd...)
+     • pearltrees-auths  = même valeur que PEARLTREES-AUTH
+
+  9. L'application a 3 champs séparés. Pour chacun :
+     → Copiez UNIQUEMENT la valeur (ce qui est APRÈS le =)
+     → Collez-la dans le champ correspondant
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  EXEMPLE CONCRET
+  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Dans le navigateur vous voyez :
+     Cookie: ...PEARLTREESSESSION=9442ca58a9fe164d;...
+
+  Dans l'app, collez dans le champ "PEARLTREESSESSION =" :
+     9442ca58a9fe164d
+
+  NE PAS coller : 
+     ✗  "9442ca58a9fe164d"         (pas de guillemets)
+     ✗  PEARLTREESSESSION=9442...  (pas le nom, juste la valeur)
+     ✗  Cookie: PEARLTREE...       (pas le mot "Cookie:")
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  EN CAS DE PROBLÈME
+  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  • "HTML reçu" → Cookies expirés → reconnectez-vous et recopiez
+  • "0 fichier(s)" → Le lien ne contient pas de fichiers téléchargeables
+  • Les cookies expirent → récupérez-en de nouveaux régulièrement
+
+  ⚠ Ne partagez JAMAIS vos cookies ! Ils donnent accès à votre compte.
