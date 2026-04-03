@@ -154,7 +154,7 @@ class PearltreesEngine:
         c = re.sub(r';\s*', '; ', c)
         return c.strip()
 
-    def __init__(self, cookies="", log=None):
+    def __init__(self, cookies="", log=None, flat_mode=False, gen_txt=False):
         self.log = log or print
         self.session = requests.Session()
         self.headers = {"User-Agent": self.UA, "Referer": "https://www.pearltrees.com/"}
@@ -168,6 +168,11 @@ class PearltreesEngine:
         self.total_downloaded = 0
         self.total_failed = 0
         self._cancelled = False
+        self.flat_mode = flat_mode
+        self.gen_txt = gen_txt
+        self.seen_filenames = {}
+        self.tree_nodes = {}
+        self.root_title = "Pearltrees"
 
     def cancel(self):
         self._cancelled = True
@@ -183,6 +188,63 @@ class PearltreesEngine:
     @staticmethod
     def sanitize(name):
         return "".join(c for c in name if c.isalnum() or c in " ._-").rstrip() or "unnamed"
+
+    def _get_unique_path(self, folder, filename):
+        fp = os.path.join(folder, filename)
+        if not os.path.exists(fp):
+            return fp, filename
+        name, ext = os.path.splitext(filename)
+        counter = 1
+        while True:
+            new_fn = f"{name} ({counter}){ext}"
+            new_fp = os.path.join(folder, new_fn)
+            if not os.path.exists(new_fp):
+                return new_fp, new_fn
+            counter += 1
+
+    def generate_txt(self, base_folder, project_name):
+        txt_path = os.path.join(base_folder, "arborescence_origine.txt")
+        lines = []
+        lines.append(f"Voici l'arborescence du projet \"{project_name}\" :\n")
+        lines.append(f"{project_name}/")
+
+        tree = {}
+        for vp, data in self.tree_nodes.items():
+            curr = tree
+            for part in vp[:-1]:
+                if part not in curr:
+                    curr[part] = {"__children": {}}
+                curr = curr[part]["__children"]
+            
+            leaf_name = vp[-1]
+            if data["type"] == "dir":
+                if leaf_name not in curr:
+                    curr[leaf_name] = {"__children": {}}
+            else:
+                curr[leaf_name] = data
+
+        def print_tree(node, prefix=""):
+            keys = sorted(list(node.keys()))
+            for i, k in enumerate(keys):
+                is_last = (i == len(keys) - 1)
+                ptr = "└── " if is_last else "├── "
+                
+                info = node[k]
+                if "__children" in info:
+                    lines.append(f"{prefix}{ptr}{k}/")
+                    child_prefix = prefix + ("    " if is_last else "│   ")
+                    print_tree(info["__children"], child_prefix)
+                else:
+                    name_str = k
+                    if self.flat_mode and info.get("disk") and info["disk"] != k:
+                        name_str = f"{k} -> {info['disk']}"
+                    lines.append(f"{prefix}{ptr}{name_str}")
+
+        print_tree(tree, "")
+        
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        self.log(f"📄 Arborescence générée: {os.path.basename(txt_path)}", "info")
 
     def _real_url(self, pid):
         try:
@@ -217,9 +279,13 @@ class PearltreesEngine:
             self.log(f"  ✗ {e}", "error")
             return False
 
-    def crawl(self, tid, folder):
+    def crawl(self, tid, folder, virtual_path=None, base_folder=None):
         if self._cancelled:
             return
+        if virtual_path is None:
+            virtual_path = []
+        if base_folder is None:
+            base_folder = folder
         try:
             r = self.session.get(
                 f"https://www.pearltrees.com/s/treeandpearlsapi/getTreeAndPearls?treeId={tid}",
@@ -241,6 +307,9 @@ class PearltreesEngine:
         elif "pearls" in data:
             pearls = data["pearls"]
 
+        if not virtual_path:
+            self.root_title = self.sanitize(tree_title)
+
         self.log(f"\n📂 {tree_title} — {len(pearls)} éléments", "info")
 
         for p in pearls:
@@ -254,9 +323,16 @@ class PearltreesEngine:
                 sub = p.get("contentTree", {})
                 sid = sub.get("id")
                 if sid:
-                    sp = os.path.join(folder, self.sanitize(sub.get("title", f"Dossier_{sid}")))
-                    os.makedirs(sp, exist_ok=True)
-                    self.crawl(str(sid), sp)
+                    folder_name = self.sanitize(sub.get("title", f"Dossier_{sid}"))
+                    vp = tuple(virtual_path + [folder_name])
+                    self.tree_nodes[vp] = {"type": "dir", "name": folder_name}
+                    
+                    if self.flat_mode:
+                        self.crawl(str(sid), folder, list(vp), base_folder)
+                    else:
+                        sp = os.path.join(folder, folder_name)
+                        os.makedirs(sp, exist_ok=True)
+                        self.crawl(str(sid), sp, list(vp), base_folder)
 
             elif "url" in p and isinstance(p["url"], dict) and "url" in p["url"]:
                 uo = p["url"]
@@ -268,7 +344,50 @@ class PearltreesEngine:
                     if ext and not fn.lower().endswith(f".{ext}"):
                         fn += f".{ext}"
                     fn = self.sanitize(fn)
-                    fp = os.path.join(folder, fn)
+                    
+                    vp = tuple(virtual_path + [fn])
+                    node = {"type": "file", "name": fn, "disk": fn}
+                    self.tree_nodes[vp] = node
+
+                    if self.flat_mode:
+                        fn_lower = fn.lower()
+                        parent_name = virtual_path[-1] if virtual_path else "Racine"
+                        
+                        if fn_lower in self.seen_filenames:
+                            first_vp = self.seen_filenames[fn_lower]["vp"]
+                            first_node = self.tree_nodes.get(first_vp)
+                            if not self.seen_filenames[fn_lower]["renamed"]:
+                                old_path = self.seen_filenames[fn_lower]["disk_path"]
+                                old_parent = self.seen_filenames[fn_lower]["parent"]
+                                name, e = os.path.splitext(first_node["name"] if first_node else fn)
+                                new_old_fn = f"{name} - {old_parent}{e}"
+                                new_old_path, new_old_fn = self._get_unique_path(base_folder, new_old_fn)
+                                if os.path.exists(old_path):
+                                    try:
+                                        os.rename(old_path, new_old_path)
+                                    except Exception as e:
+                                        self.log(f"  ⚠ Erreur renommage {old_path}: {e}", "warn")
+                                self.seen_filenames[fn_lower]["renamed"] = True
+                                self.seen_filenames[fn_lower]["disk_path"] = new_old_path
+                                if first_node:
+                                    first_node["disk"] = new_old_fn
+
+                            name, e = os.path.splitext(fn)
+                            final_fn = f"{name} - {parent_name}{e}"
+                            fp, final_fn = self._get_unique_path(base_folder, final_fn)
+                            node["disk"] = final_fn
+                        else:
+                            final_fn = fn
+                            fp, final_fn = self._get_unique_path(base_folder, final_fn)
+                            node["disk"] = final_fn
+                            self.seen_filenames[fn_lower] = {
+                                "vp": vp,
+                                "parent": parent_name,
+                                "disk_path": fp,
+                                "renamed": False
+                            }
+                    else:
+                        fp = os.path.join(folder, fn)
 
                     if os.path.exists(fp) and os.path.getsize(fp) > 1000:
                         self.log(f"  ⏩ Déjà: {title}", "skip")
@@ -421,8 +540,8 @@ class PearltreesApp(ctk.CTk):
         super().__init__()
 
         self.title("Pearltrees Downloader")
-        self.geometry("720x700")
-        self.minsize(640, 580)
+        self.geometry("720x820")
+        self.minsize(640, 700)
         self.configure(fg_color=BG_WINDOW)
 
         # Custom icon
@@ -602,6 +721,57 @@ class PearltreesApp(ctk.CTk):
 
         # Load saved cookies on startup
         self._load_cookies()
+
+        # ── Options de téléchargement ──
+        mode_sec = ctk.CTkFrame(ci, fg_color="transparent")
+        mode_sec.pack(fill="x", pady=(0, 10))
+
+        ctk.CTkLabel(
+            mode_sec, text="Mode de téléchargement",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            text_color=GRAY_700,
+        ).pack(anchor="w", pady=(0, 6))
+
+        self._dl_mode = ctk.IntVar(value=0) # 0: tree, 1: flat
+
+        def _on_mode_change():
+            if self._dl_mode.get() == 1:
+                self._cb_gen_txt_container.pack(fill="x", anchor="w")
+            else:
+                self._cb_gen_txt_container.pack_forget()
+                self._gen_txt_var.set(False)
+
+        self._rb_tree = ctk.CTkRadioButton(
+            mode_sec, text="Conserver l’arborescence des perles",
+            variable=self._dl_mode, value=0,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            text_color=GRAY_900, fg_color=BLUE, hover_color=BLUE_HOVER,
+            border_color=GRAY_300,
+            command=_on_mode_change
+        )
+        self._rb_tree.pack(anchor="w", pady=3)
+
+        self._rb_flat = ctk.CTkRadioButton(
+            mode_sec, text="Télécharger tous les fichiers à plat (sans arborescence)",
+            variable=self._dl_mode, value=1,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            text_color=GRAY_900, fg_color=BLUE, hover_color=BLUE_HOVER,
+            border_color=GRAY_300,
+            command=_on_mode_change
+        )
+        self._rb_flat.pack(anchor="w", pady=3)
+
+        self._cb_gen_txt_container = ctk.CTkFrame(mode_sec, fg_color="transparent")
+        self._gen_txt_var = ctk.BooleanVar(value=False)
+        self._cb_gen_txt = ctk.CTkCheckBox(
+            self._cb_gen_txt_container, text="Ajouter un fichier .txt avec l’arborescence d’origine",
+            variable=self._gen_txt_var,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            text_color=GRAY_500, fg_color=BLUE, hover_color=BLUE_HOVER,
+            corner_radius=6, border_color=GRAY_300
+        )
+        self._cb_gen_txt.pack(anchor="w", padx=24, pady=2)
+
 
         # ── Action Buttons ──
         btns = ctk.CTkFrame(ci, fg_color="transparent")
@@ -980,7 +1150,9 @@ class PearltreesApp(ctk.CTk):
         self._set_status("Téléchargement en cours…", "↓", BG_STATUS_RUN, BLUE)
         self._pulse.start()
 
-        self._engine = PearltreesEngine(cookies=cookies, log=self._add_log)
+        flat_mode = (self._dl_mode.get() == 1)
+        gen_txt = self._gen_txt_var.get()
+        self._engine = PearltreesEngine(cookies=cookies, log=self._add_log, flat_mode=flat_mode, gen_txt=gen_txt)
         self._out = out
 
         def work():
@@ -992,6 +1164,9 @@ class PearltreesApp(ctk.CTk):
 
                 self._engine.crawl(tid, out)
                 eng = self._engine
+
+                if eng.gen_txt and eng.flat_mode:
+                    eng.generate_txt(out, eng.root_title)
 
                 def finish():
                     self._pulse.stop()

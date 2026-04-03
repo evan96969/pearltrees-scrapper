@@ -1,15 +1,16 @@
 # pearltrees-scrapper
 🌳 Pearltrees Downloader 
 
-Platform
+![Screenshot de l'application](screenshot.png)
 
-Pearltrees Downloader est un outil de bureau moderne et performant conçu pour télécharger l'intégralité de vos collections Pearltrees (fichiers, PDF, images, vidéos) en un seul clic, tout en conservant l'arborescence de vos dossiers.
+Pearltrees Downloader est un outil de bureau moderne et performant conçu pour télécharger l'intégralité de vos collections Pearltrees (fichiers, PDF, images, vidéos) en un seul clic.
 
 ✨ Caractéristiques
 🚀 Téléchargement récursif : Récupère automatiquement tous les fichiers des sous-collections.
 💎 Design Premium : Interface inspirée de macOS avec verre dépoli, ombres douces et animations fluides.
 🔒 Support des Collections Privées : Système d'authentification par cookies pour accéder à vos perles privées en toute sécurité.
-📂 Organisation automatique : Recrée la structure de dossiers de Pearltrees sur votre ordinateur.
+📂 Organisation flexible : Conservez l'arborescence originale des dossiers Pearltrees ou téléchargez tous les fichiers à plat dans un seul dossier !
+📝 Export de structure : Générez automatiquement un fichier `.txt` avec l'arborescence d'origine (pratique en mode à plat).
 ⚡ Haute Performance : Moteur de téléchargement optimisé avec journal d'activité en temps réel.
 🚀 Installation & Utilisation
 Rendez-vous dans l'onglet Releases.
