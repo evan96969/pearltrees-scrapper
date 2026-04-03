@@ -1,7 +1,9 @@
 # pearltrees-scrapper
 🌳 Pearltrees Downloader 
 
-![Screenshot de l'application](screenshot.png)
+<p align="center">
+  <img src="screenshot.png" alt="Screenshot de l'application" width="700">
+</p>
 
 Pearltrees Downloader est un outil de bureau moderne et performant conçu pour télécharger l'intégralité de vos collections Pearltrees (fichiers, PDF, images, vidéos) en un seul clic.
 
